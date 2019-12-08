@@ -177,9 +177,108 @@ print('test loss: '+str(test_loss/s))
 # Save: torch.save(model, PATH)
 PATH = 'C:/Users/Marcelo/ICLOUD~1/Work/CASA-P~1/0_PROJ~1/Study/MESTRADO/Udemy/DEEP_L~1/VOLUME~2/PART5-~1/SECTIO~3/P16-BO~1/BOLTZM~1'
 
-torch.save(model, PATH)
+# torch.save(model, PATH)
 
 # Load
 # Model class must be defined somewhere
 # model = torch.load(PATH)
 # model.eval()
+
+# Evaluating the Boltzmann Machine
+# the two ways of evaluating our RBM are with the RMSE and the Average Distance.
+
+# RMSE:
+# The RMSE (Root Mean Squared Error) is calculated as the root of the mean 
+# of the squared differences between the predictions and the targets.
+
+# The code that computes the RMSE:
+
+# Training phase
+
+nb_epoch = 10
+for epoch in range(1, nb_epoch + 1):
+    train_loss = 0
+    s = 0.
+    for id_user in range(0, nb_users - batch_size, batch_size):
+        vk = training_set[id_user:id_user+batch_size]
+        v0 = training_set[id_user:id_user+batch_size]
+        ph0,_ = rbm.sample_h(v0)
+        for k in range(10):
+            _,hk = rbm.sample_h(vk)
+            _,vk = rbm.sample_v(hk)
+            vk[v0<0] = v0[v0<0]
+        phk,_ = rbm.sample_h(vk)
+        rbm.train(v0, vk, ph0, phk)
+        train_loss += np.sqrt(torch.mean((v0[v0>=0] - vk[v0>=0])**2)) # RMSE here
+        s += 1.
+    print('epoch: '+str(epoch)+' loss: '+str(train_loss/s))
+
+# Test phase
+
+test_loss = 0
+s = 0.
+for id_user in range(nb_users):
+    v = training_set[id_user:id_user+1]
+    vt = test_set[id_user:id_user+1]
+    if len(vt[vt>=0]) > 0:
+        _,h = rbm.sample_h(v)
+        _,v = rbm.sample_v(h)
+        test_loss += np.sqrt(torch.mean((vt[vt>=0] - v[vt>=0])**2)) # RMSE here
+        s += 1.
+print('test loss: '+str(test_loss/s))
+
+# Using the RMSE, this RBM would obtain an error around 0.46. 
+# But be careful, although it looks similar, one must not confuse the RMSE and the Average Distance. 
+# A RMSE of 0.46 doesn’t mean that the average distance between the prediction and the ground truth is 0.46. 
+# In random mode we would end up with a RMSE around 0.72. 
+# An error of 0.46 corresponds to 75% of successful prediction.
+
+# Average Distance:
+
+# Training phase:
+
+nb_epoch = 10
+for epoch in range(1, nb_epoch + 1):
+    train_loss = 0
+    s = 0.
+    for id_user in range(0, nb_users - batch_size, batch_size):
+        vk = training_set[id_user:id_user+batch_size]
+        v0 = training_set[id_user:id_user+batch_size]
+        ph0,_ = rbm.sample_h(v0)
+        for k in range(10):
+            _,hk = rbm.sample_h(vk)
+            _,vk = rbm.sample_v(hk)
+            vk[v0<0] = v0[v0<0]
+        phk,_ = rbm.sample_h(vk)
+        rbm.train(v0, vk, ph0, phk)
+        train_loss += torch.mean(torch.abs(v0[v0>=0] - vk[v0>=0])) # Average Distance here
+        s += 1.
+    print('epoch: '+str(epoch)+' loss: '+str(train_loss/s))
+
+# Test Phase
+
+test_loss = 0
+s = 0.
+for id_user in range(nb_users):
+    v = training_set[id_user:id_user+1]
+    vt = test_set[id_user:id_user+1]
+    if len(vt[vt>=0]) > 0:
+        _,h = rbm.sample_h(v)
+        _,v = rbm.sample_v(h)
+        test_loss += torch.mean(torch.abs(vt[vt>=0] - v[vt>=0])) # Average Distance here
+        s += 1.
+print('test loss: '+str(test_loss/s))
+
+# With this metric, we obtained an Average Distance of 0.24, which is equivalent to about 75% of correct prediction.
+
+# Hence, it works very well and there is a predictive power.
+
+# If you want to check that 0.25 corresponds to 75% of success, you can run the following test:
+
+import numpy as np
+u = np.random.choice([0,1], 100000)
+v = np.random.choice([0,1], 100000)
+u[:50000] = v[:50000]
+sum(u==v)/float(len(u)) # -> you get 0.75
+np.mean(np.abs(u-v)) # -> you get 0.25
+
